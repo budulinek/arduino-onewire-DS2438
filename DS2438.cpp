@@ -18,9 +18,8 @@
 
 #include "DS2438.h"
 
-DS2438::DS2438(OneWire *ow, uint8_t *address) {
+DS2438::DS2438(OneWire *ow) {
     _ow = ow;
-    _address = address;
 };
 
 void DS2438::begin(uint8_t mode) {
@@ -32,18 +31,18 @@ void DS2438::begin(uint8_t mode) {
     _timestamp = 0;
 }
 
-void DS2438::update() {
+void DS2438::update(uint8_t *address) {
     uint8_t data[9];
-
+    _address = address;
     _error = true;
     _timestamp = millis();
 
     if (_mode & DS2438_MODE_CHA || _mode == DS2438_MODE_TEMPERATURE) {
         boolean doTemperature = _mode & DS2438_MODE_TEMPERATURE;
-        if (!startConversion(DS2438_CHA, doTemperature)) {
+        if (!startConversion(DS2438_CHA, doTemperature,_address)) {
             return;
         }
-        if (!readPageZero(data))
+        if (!readPageZero(data,_address))
             return;
         if (doTemperature) {
             _temperature = (double)(((((int16_t)data[2]) << 8) | (data[1] & 0x0ff)) >> 3) * 0.03125;
@@ -54,15 +53,16 @@ void DS2438::update() {
     }
     if (_mode & DS2438_MODE_CHB) {
         boolean doTemperature = _mode & DS2438_MODE_TEMPERATURE && !(_mode & DS2438_MODE_CHA);
-        if (!startConversion(DS2438_CHB, doTemperature)) {
+        if (!startConversion(DS2438_CHB, doTemperature,_address)) {
             return;
         }
-        if (!readPageZero(data))
+        if (!readPageZero(data,_address))
             return;
         if (doTemperature) {
             _temperature = (double)(((((int16_t)data[2]) << 8) | (data[1] & 0x0ff)) >> 3) * 0.03125;
         }
-        _voltageB = (((data[4] << 8) & 0x00300) | (data[3] & 0x0ff)) / 100.0;
+        _voltageB = abs(((data[6] << 8) | (data[5]))) / 4096.0;
+        
     }
     _error = false;
 }
@@ -89,8 +89,9 @@ unsigned long DS2438::getTimestamp() {
     return _timestamp;
 }
 
-boolean DS2438::startConversion(int channel, boolean doTemperature) {
-    if (!selectChannel(channel))
+boolean DS2438::startConversion(int channel, boolean doTemperature, uint8_t *address) {
+    _address = address;
+    if (!selectChannel(channel,_address))
         return false;
     _ow->reset();
     _ow->select(_address);
@@ -105,20 +106,22 @@ boolean DS2438::startConversion(int channel, boolean doTemperature) {
     return true;
 }
 
-boolean DS2438::selectChannel(int channel) {
+boolean DS2438::selectChannel(int channel, uint8_t *address) {
+    _address = address;
     uint8_t data[9];
-    if (readPageZero(data)) {
+    if (readPageZero(data,_address)) {
         if (channel == DS2438_CHB)
             data[0] = data[0] | 0x08;
         else
             data[0] = data[0] & 0xf7;
-        writePageZero(data);
+        writePageZero(data,_address);
         return true;
     }
     return false;
 }
 
-void DS2438::writePageZero(uint8_t *data) {
+void DS2438::writePageZero(uint8_t *data, uint8_t *address) {
+    _address = address;
     _ow->reset();
     _ow->select(_address);
     _ow->write(DS2438_WRITE_SCRATCHPAD_COMMAND, 0);
@@ -131,7 +134,8 @@ void DS2438::writePageZero(uint8_t *data) {
     _ow->write(DS2438_PAGE_0, 0);
 }
 
-boolean DS2438::readPageZero(uint8_t *data) {
+boolean DS2438::readPageZero(uint8_t *data, uint8_t *address) {
+    _address = address;
     _ow->reset();
     _ow->select(_address);
     _ow->write(DS2438_RECALL_MEMORY_COMMAND, 0);
@@ -144,5 +148,4 @@ boolean DS2438::readPageZero(uint8_t *data) {
         data[i] = _ow->read();
     return _ow->crc8(data, 8) == data[8];
 }
-
 
