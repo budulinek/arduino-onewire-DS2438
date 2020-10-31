@@ -42,9 +42,9 @@
 
 class DS2438 {
     public:
-        DS2438(OneWire *ow, uint8_t *address);
+        DS2438(OneWire *ow);
         void begin(uint8_t mode=(DS2438_MODE_CHA | DS2438_MODE_CHB | DS2438_MODE_TEMPERATURE));
-        void update();
+        void update(uint8_t *address);
         double getTemperature();
         float getVoltage(int channel=DS2438_CHA);
         boolean isError();
@@ -58,10 +58,10 @@ class DS2438 {
         float _voltageB;
         unsigned long _timestamp;
         boolean _error;
-        boolean startConversion(int channel, boolean doTemperature);
-        boolean selectChannel(int channel);
-        void writePageZero(uint8_t *data);
-        boolean readPageZero(uint8_t *data);
+        boolean startConversion(int channel, boolean doTemperature, uint8_t *address);
+        boolean selectChannel(int channel, uint8_t *address);
+        void writePageZero(uint8_t *data, uint8_t *address);
+        boolean readPageZero(uint8_t *data, uint8_t *address);
 };
 
 #endif
